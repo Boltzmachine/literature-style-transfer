@@ -5,11 +5,10 @@ from typing import Dict
 from allennlp.data import DatasetReader, Instance, Tokenizer
 from allennlp.data.fields import Field, TextField, LabelField
 from allennlp.data.token_indexers import TokenIndexer
-from numpy import isin
 
 
-@DatasetReader.register("style_classification_reader")
-class StyleClassificationReader(DatasetReader):
+@DatasetReader.register("style_transfer_pretrain_reader")
+class StyleTransferPretrainReader(DatasetReader):
     def __init__(
         self,
         tokenizer: Tokenizer,
@@ -17,6 +16,7 @@ class StyleClassificationReader(DatasetReader):
         min_length: int = 8,
         max_length: int = 512,
         cache_files: bool = True,
+        debug: bool = False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -25,25 +25,42 @@ class StyleClassificationReader(DatasetReader):
         self.min_length = min_length
         self.max_length = max_length
 
+        if debug:
+            self._instance_counter = 0
+        self.style_to_token = dict()
+        self.token_to_style = dict()
+
     def _read(self, file_path: str) -> Instance:
         author_paths = self._parse_file_path(file_path)
-        for author, path in author_paths.items():
+        for i, (author, path) in enumerate(author_paths.items()):
+            style_token = f"[unused{i+1}]"
+            self.style_to_token[author] = style_token
+            self.token_to_style[style_token] = author
             docs = glob.glob(os.path.join(path, "*.txt"))
             for doc in docs:
+                if getattr(self, "_instance_counter", -1) > 20:
+                    self._instance_counter = 0
+                    break
                 with open(doc, 'r') as file:
                     content = file.read()
+                    if len(content) < self.min_length:
+                        continue
                     yield self.text_to_instance(content, author)
 
     def text_to_instance(self, text: str, author: str) -> Instance:
         tokens = self.tokenizer.tokenize(text)
         tokens = tokens[:self.max_length]  # TODO: more complicated
+
         text_field = TextField(tokens, token_indexers=self.token_indexers)
-        label_field = LabelField(author)
+        style_field = LabelField(author, label_namespace="style_labels")
 
         fields = {
             "text": text_field,
-            "label": label_field
+            "style": style_field,
         }
+
+        if hasattr(self, "_instance_counter"):
+            self._instance_counter += 1
 
         return Instance(fields)
 
@@ -60,22 +77,4 @@ class StyleClassificationReader(DatasetReader):
         return author_paths
 
     def _adjust_length(self, tokens):
-        pass
-
-
-@DatasetReader.register("literature-st")
-class LiteratureSTReader(DatasetReader):
-    def __init__(
-        self,
-        cache_files: bool,
-        **kwargs
-    ):
-        super().__init__(**kwargs)
-
-    def _read(self, file_path: str):
-        with open(file_path, 'r') as file:
-            for data in file:
-                yield self.text_to_instance(data)
-
-    def text_to_instance(self, *inputs) -> Instance:
         pass

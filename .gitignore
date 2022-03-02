@@ -1,6 +1,8 @@
 .vscode
 data/ready/*
+data/pretrained/*
 output
+wandb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

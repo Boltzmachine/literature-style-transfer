@@ -1,7 +1,7 @@
-from re import L
 from typing import Dict, Optional
 
 import torch
+import torch.nn.functional as F
 
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder, FeedForward
@@ -18,7 +18,8 @@ class StyleClassifier(Model):
             self,
             vocab: Vocabulary,
             contextualizer: TextFieldEmbedder,
-            metrics: Dict[str, Metric],
+            metrics: Dict[str, Metric] = None,
+            train_alone: bool = False,
             regularizer: RegularizerApplicator = None,
             serialization_dir: Optional[str] = None,
             ddp_accelerator: Optional[DdpAccelerator] = None
@@ -27,6 +28,7 @@ class StyleClassifier(Model):
         self.contextualizer = contextualizer
         self.head = torch.nn.Linear(self.contextualizer.get_output_dim(), vocab.get_vocab_size("labels"))
 
+        self.train_alone = train_alone
         self.metrics = metrics
 
     def forward(
@@ -39,14 +41,17 @@ class StyleClassifier(Model):
         logits = self.head(pooled_output)
         for metric in self.metrics.values():
             metric(logits, label)
-        probs = torch.nn.functional.softmax(logits, dim=-1)
 
-        loss = torch.nn.functional.cross_entropy(logits, label)
+        if self.train_alone:
+            probs = F.softmax(logits, dim=-1)
+            loss = F.cross_entropy(logits, label)
 
-        output = {
-            'loss': loss,
-            "probs": probs
-        }
+            output = {
+                'loss': loss,
+                "probs": probs
+            }
+        else:
+            return logits
 
         return output
 

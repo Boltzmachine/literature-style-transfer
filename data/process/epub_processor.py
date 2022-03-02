@@ -15,8 +15,8 @@ RAW_DATA_PATH = os.path.join(DATA_ROOT_PATH, "raw")
 READY_DATA_PATH = os.path.join(DATA_ROOT_PATH, "ready")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("author", type=str, default='all')
-parser.add_argument("--train_split_ratio", type=float, default=0.8)
+parser.add_argument("--author", type=str, default='all')
+parser.add_argument("--train_split_ratio", type=float, default=1.0)
 parser.add_argument("--max-length", type=int, default=512)
 
 
@@ -75,7 +75,8 @@ def create_data_dir_may_recreate(args):
         shutil.rmtree(AUTHOR_PATH)
     os.mkdir(AUTHOR_PATH)
     os.mkdir(os.path.join(AUTHOR_PATH, "train"))
-    os.mkdir(os.path.join(AUTHOR_PATH, "test"))
+    if args.train_split_ratio < 1.0:
+        os.mkdir(os.path.join(AUTHOR_PATH, "test"))
 
     return AUTHOR_PATH
 
@@ -166,6 +167,7 @@ def main():
     args = parser.parse_args()
     if args.author == "all":
         for author, func in process_funcs.items():
+            args.author = author
             func(args)
     else:
         process_funcs[args.author](args)

@@ -4,10 +4,13 @@ import sys
 
 from allennlp.commands import main
 
-config_file = "experiments/style_classifier.jsonnet"
+config_file = "experiments/style_transfer.jsonnet"
 
 # Use overrides to train on CPU.
-overrides = json.dumps({"trainer": {"cuda_device": -1}})
+overrides = json.dumps({
+    # "trainer.cuda_device": -1,
+    "dataset_reader.debug": True
+})
 
 serialization_dir = "/tmp/debugger_train"
 

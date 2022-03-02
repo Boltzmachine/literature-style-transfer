@@ -1,1 +1,3 @@
-from .readers import StyleClassificationReader
+from .style_classification_reader import StyleClassificationReader
+from .style_transfer_pretrain_reader import StyleTransferPretrainReader
+from .style_transfer_no_pretrain_reader import StyleTransferNoPretrainReader
