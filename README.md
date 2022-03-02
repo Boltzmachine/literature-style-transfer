@@ -10,4 +10,4 @@ Deep learning: Bert/Transformer, PyTorch, AllenNLP. Methods similar to StarGAN, 
 
 ## Now
 
-I am currently working on a classifier to classify text from two authors --- 莫言 and 张爱玲. Next I will train a style transfer between the two authors. After that, I will add more authors.
+Currently I've already finished the code of style transfering between two authors following StyleTransformer (an architecture similar to CycleGAN in CV). However, during training, to keep the model differentiable, I adopt a token-by-token generation process, which is not time-efficient. On a single A100, one epoch costs 20 hours.
