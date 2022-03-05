@@ -13,8 +13,8 @@ class StyleTransferPretrainReader(DatasetReader):
         self,
         tokenizer: Tokenizer,
         token_indexers: Dict[str, TokenIndexer],
-        min_length: int = 8,
-        max_length: int = 512,
+        min_length: int = 16,
+        max_length: int = 480,
         cache_files: bool = True,
         debug: bool = False,
         **kwargs
@@ -43,13 +43,21 @@ class StyleTransferPretrainReader(DatasetReader):
                     break
                 with open(doc, 'r') as file:
                     content = file.read()
-                    if len(content) < self.min_length:
+                    if len(content) < self.min_length or len(content) > self.max_length - 2:
                         continue
                     yield self.text_to_instance(content, author)
 
     def text_to_instance(self, text: str, author: str) -> Instance:
         tokens = self.tokenizer.tokenize(text)
-        tokens = tokens[:self.max_length]  # TODO: more complicated
+        # print(text)
+        # while len(tokens) > self.max_length:
+        #     for end, token in enumerate(reversed(tokens)):
+        #         if end == 0:
+        #             continue
+        #         if token.text in ['。', '！', '？', '”']:
+        #             tokens = tokens[: len(tokens) - end]
+        #             break
+        # assert len(tokens) <= self.max_length, text
 
         text_field = TextField(tokens, token_indexers=self.token_indexers)
         style_field = LabelField(author, label_namespace="style_labels")

@@ -30,7 +30,7 @@ local pretrained_model = 'fnlp/cpt-base';
     // },
   },
   data_loader: {
-    batch_size: 3,
+    batch_size: 4,
     shuffle: true,
   },
   trainer: {

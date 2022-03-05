@@ -153,7 +153,8 @@ class GANTrainer(Trainer):
         gen_self_logits = generator(
             src_input=text,
             source_style=style,
-            target_style=style
+            target_style=style,
+            max_length=text['tokens']['token_ids'].size(1)
         )
 
         rec_loss = F.cross_entropy(gen_self_logits.transpose(-1, -2),
@@ -175,6 +176,7 @@ class GANTrainer(Trainer):
             }},
             source_style=_style,
             target_style=style,
+            max_length=text['tokens']['token_ids'].size(1),
         )
         cyc_loss = F.cross_entropy(gen_cyc_logits.transpose(-1, -2),
                                    text['tokens']['token_ids'], ignore_index=self.model.pad_token_id)
@@ -219,15 +221,30 @@ class GANTrainer(Trainer):
         self,
         text: TextFieldTensors,
         style: torch.IntTensor,
+        generate_mode=False,
     ):
+        def recursive_copy_dict_of_tensors(org: dict):
+            new = {}
+            if isinstance(org, torch.Tensor):
+                return org.clone()
+            elif isinstance(org, dict):
+                for k, v in org.items():
+                    new[k] = recursive_copy_dict_of_tensors(v)
+            else:
+                raise ValueError
+            return new
 
-        text['tokens']['token_ids'] = text['tokens']['token_ids'][:, 1:]  # remove [CLS] token
-        org_token_ids = text['tokens']['token_ids']
+        text_ = recursive_copy_dict_of_tensors(text)
+        text_['tokens']['token_ids'] = text_['tokens']['token_ids'][:, 1:]  # remove [CLS] token
+        del text
+
+        if generate_mode:
+            return self.model.generate(text_, style)
 
         # sample style
         _style = 1 - style
 
-        gen_loss, dis_othr_soft_tokens, gen_othr_attention_mask = self.g_step(text, style, _style)
+        gen_loss, dis_othr_soft_tokens, gen_othr_attention_mask = self.g_step(text_, style, _style)
         disc_loss = self.d_step(style, dis_othr_soft_tokens, gen_othr_attention_mask)
 
         outputs = {
@@ -238,9 +255,12 @@ class GANTrainer(Trainer):
         return outputs
 
     def _train_epoch(self, epoch: int):
+        logger.info(f"Epoch {epoch}")
         _gen_loss = 0
         _disc_loss = 0
         num_completed_batches = 0
+
+        logger.info(f"Training")
         self.model.train()
         for batch in Tqdm.tqdm(self.data_loader):
             output_dict = self._run_batch(**batch)
@@ -251,6 +271,7 @@ class GANTrainer(Trainer):
             _disc_loss += disc_loss
             num_completed_batches += 1
 
+        logger.info(f"Evaluating")
         self.model.eval()
         table = self._evaluation()
         self.wandb_run.log({
@@ -266,9 +287,9 @@ class GANTrainer(Trainer):
         table = wandb.Table(columns=columns)
         vocab = self.model.vocab
 
-        for data in self.eval_data:
-            outputs = self.model.generate(**data)
-            source_sents = self.tokenizer.batch_decode(data['text']['bart']['token_ids'], skip_special_tokens=True)
+        for data in Tqdm.tqdm(self.eval_data):
+            outputs = self._run_batch(**data, generate_mode=True)
+            source_sents = self.tokenizer.batch_decode(data['text']['tokens']['token_ids'], skip_special_tokens=True)
             source_styles = data['style'].tolist()
             target_styles = outputs[:, 1].tolist()
             target_sents = self.tokenizer.batch_decode(outputs[:, 1:], skip_special_tokens=True)

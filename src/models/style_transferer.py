@@ -56,6 +56,7 @@ class SoftTokensGenerator(Model):
         src_input: TextFieldTensors,
         source_style: torch.IntTensor,
         target_style: torch.IntTensor,
+        max_length: int = 480,
         tgt_input: TextFieldTensors = None,
     ):
         input_ids = src_input['tokens'].get('token_ids')
@@ -75,11 +76,13 @@ class SoftTokensGenerator(Model):
             attention_mask=attention_mask,
         )
 
+        gen_self = (source_style == target_style).all()
+
         generated_outputs = self.generate_token_by_token(
             encoder_outputs=encoder_outputs,
             attention_mask=attention_mask,
             begin_token=target_style,
-            max_len=input_len,
+            max_length=max_length,
             return_hard=True
         )
         # ref_tokens = self.model.generate(input_ids, num_beams=1, do_sample=False, max_length=512)
@@ -92,8 +95,8 @@ class SoftTokensGenerator(Model):
         self,
         encoder_outputs,
         attention_mask,
+        max_length,
         begin_token=None,
-        max_len=512,
         return_hard=False,
     ):
         # logits_processor = LogitsProcessorList([
@@ -117,7 +120,7 @@ class SoftTokensGenerator(Model):
         generated_logits = []
         # begin generation
         # while True:
-        for _ in range(max_len):
+        for _ in range(max_length):
             outputs = self.model(
                 encoder_outputs=encoder_outputs,
                 attention_mask=attention_mask,
@@ -183,7 +186,7 @@ class SoftTokensGenerator(Model):
     ):
         input_ids, _ = self._add_style_token(input_ids, None, style=source_style)
         return self.model.generate(
-            inputs=input_ids,
+            input_ids=input_ids,
             attention_mask=attention_mask,
             decoder_input_ids=target_style.unsqueeze(-1),
             num_beams=3,
@@ -331,13 +334,14 @@ class StyleTransferer(Model):
         self,
         text: TextFieldTensors,
         style: torch.IntTensor,
+
     ):
-        text['tokens']['token_ids'] = text['tokens']['token_ids'][:, 1:]  # remove [CLS] token
         input_ids = text['tokens']['token_ids']
+        attention_mask = text['tokens']['mask']
 
         return self.generator.generate(
             input_ids=input_ids,
-            attention_mask=text['tokens']['mask'],
+            attention_mask=attention_mask,
             source_style=style,
             target_style=1 - style,
         )
